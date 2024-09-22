@@ -8,8 +8,12 @@ Yibin Zhao(Changer)
 
 </div>
 This repository is changed by Yibin Zhao(ECUST lab10204),the pose of the camera can backward by the loss of 2d pictures(The pose of camera is only estimated by ICP in the origin code).  
+
 The gaussain is tansfered to camera's canter so that the pose can be estimated.   
-The result is bad. The ATE loss after backwards become bigger. :(  
+
+
+The result is bad. The ATE loss after backwards become bigger. :(    
+
 This repository is just a saved file for learning.   
 
 This repository is intended to substantiate the results reported in the paper. Additional features including visualization tools will be updated soon!
