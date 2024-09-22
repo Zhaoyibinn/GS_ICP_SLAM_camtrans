@@ -1,0 +1,4 @@
+# ninja log v5
+0	5154	1722573157582097343	/home/pyh/MyProject/GS_ICP_SLAM/submodules/simple-knn/build/temp.linux-x86_64-cpython-39/simple_knn.o	944bdf2fe596492
+0	7518	1722573159946145512	/home/pyh/MyProject/GS_ICP_SLAM/submodules/simple-knn/build/temp.linux-x86_64-cpython-39/ext.o	26a5775c795dab8c
+0	23074	1722573175502462470	/home/pyh/MyProject/GS_ICP_SLAM/submodules/simple-knn/build/temp.linux-x86_64-cpython-39/spatial.o	f70a0ac154fb6485
