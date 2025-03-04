@@ -172,9 +172,9 @@ class Mapper(SLAMParameters):
             if self.is_tracking_keyframe_shared[0]:
                 # get shared gaussians
                 points, colors, rots, scales, z_values, trackable_filter = self.shared_new_gaussians.get_values()
-                # if self.shared_cam.cam_idx[0].item() == 0:
+                if self.shared_cam.cam_idx[0].item() == 0:
                     # Add new gaussians to map gaussians
-                self.gaussians.add_from_pcd2_tensor(points, colors, rots, scales, z_values, trackable_filter)
+                    self.gaussians.add_from_pcd2_tensor(points, colors, rots, scales, z_values, trackable_filter)
                 
 
                 # Allocate new target points to shared memory
@@ -309,15 +309,15 @@ class Mapper(SLAMParameters):
 
 
 
-                            self.gaussians.optimizer.step()
-                            self.gaussians.optimizer.zero_grad(set_to_none = True)
+                            # self.gaussians.optimizer.step()
+                            # self.gaussians.optimizer.zero_grad(set_to_none = True)
 
-                            # if new_keyframe:
-                            #     self.gaussians.optimizer_camera.step()
-                            #     self.gaussians.optimizer_camera.zero_grad(set_to_none = True)
-                            # else:
-                            #     self.gaussians.optimizer.step()
-                            #     self.gaussians.optimizer.zero_grad(set_to_none=True)
+                            if new_keyframe:
+                                self.gaussians.optimizer_camera.step()
+                                self.gaussians.optimizer_camera.zero_grad(set_to_none = True)
+                            else:
+                                self.gaussians.optimizer.step()
+                                self.gaussians.optimizer.zero_grad(set_to_none=True)
 
                             # if new_keyframe:
                             if False:
