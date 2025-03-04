@@ -338,7 +338,7 @@ class Mapper(SLAMParameters):
                                 world2camera_retrack = copy.deepcopy(retrack_T)
 
 
-                            if self.rerun_viewer:
+                            if self.rerun_viewer and ii == times -1 :
                                 current_i = copy.deepcopy(self.iter_shared[0])
                                 rgb_np = image.cpu().numpy().transpose(1,2,0)
                                 rgb_np = np.clip(rgb_np, 0., 1.0) * 255
