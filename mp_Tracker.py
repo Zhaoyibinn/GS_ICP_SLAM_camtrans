@@ -127,28 +127,28 @@ class Tracker(SLAMParameters):
             # print("track frame:", ii)
 
 
-            if last_retrack_Rt_shared.float().mean() != self.retrack_Rt_shared[0].mean() :
-                last_retrack_Rt_shared = deepcopy(self.retrack_Rt_shared[0])
-                pose_retrack = torch.eye(4)
-                pose_retrack[:3,:3] = last_retrack_Rt_shared[:3,:3]
-                pose_retrack[:3,3] = last_retrack_Rt_shared[:3,3]
-                self.poses[-1]=np.array(pose_retrack.inverse())
+            # if last_retrack_Rt_shared.float().mean() != self.retrack_Rt_shared[0].mean() :
+            #     last_retrack_Rt_shared = deepcopy(self.retrack_Rt_shared[0])
+            #     pose_retrack = torch.eye(4)
+            #     pose_retrack[:3,:3] = last_retrack_Rt_shared[:3,:3]
+            #     pose_retrack[:3,3] = last_retrack_Rt_shared[:3,3]
+            #     self.poses[-1]=np.array(pose_retrack.inverse())
 
-                rr.set_time_seconds("log_time", time.time() - self.total_start_time)
-                rr.log(
-                    "cam/retrack",
-                    rr.Transform3D(translation=self.poses[-1][:3, 3],
-                                   rotation=rr.Quaternion(
-                                       xyzw=(Rotation.from_matrix(self.poses[-1][:3, :3])).as_quat()))
-                )
-                rr.log(
-                    "cam/retrack",
-                    rr.Pinhole(
-                        resolution=[self.W, self.H],
-                        image_from_camera=self.cam_intrinsic,
-                        camera_xyz=rr.ViewCoordinates.RDF,
-                    )
-                )
+            #     rr.set_time_seconds("log_time", time.time() - self.total_start_time)
+            #     rr.log(
+            #         "cam/retrack",
+            #         rr.Transform3D(translation=self.poses[-1][:3, 3],
+            #                        rotation=rr.Quaternion(
+            #                            xyzw=(Rotation.from_matrix(self.poses[-1][:3, :3])).as_quat()))
+            #     )
+            #     rr.log(
+            #         "cam/retrack",
+            #         rr.Pinhole(
+            #             resolution=[self.W, self.H],
+            #             image_from_camera=self.cam_intrinsic,
+            #             camera_xyz=rr.ViewCoordinates.RDF,
+            #         )
+            #     )
 
 
 
@@ -180,10 +180,10 @@ class Tracker(SLAMParameters):
                             camera_xyz=rr.ViewCoordinates.RDF,
                         )
                     )
-                    rr.log(
-                        "cam/current",
-                        rr.Image(current_image)
-                    )
+                    # rr.log(
+                    #     "cam/current",
+                    #     rr.Image(current_image)
+                    # )
                     
                 # Update Camera pose #
                 current_pose = np.linalg.inv(current_pose)
@@ -254,10 +254,10 @@ class Tracker(SLAMParameters):
                             camera_xyz=rr.ViewCoordinates.RDF,
                         )
                     )
-                    rr.log(
-                        "cam/current",
-                        rr.Image(current_image)
-                    )
+                    # rr.log(
+                    #     "cam/current",
+                    #     rr.Image(current_image)
+                    # )
 
                 # Update Camera pose #
                 current_pose = np.linalg.inv(current_pose)
