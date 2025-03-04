@@ -190,7 +190,9 @@ class Tracker(SLAMParameters):
                 T = current_pose[:3,3]
                 R = current_pose[:3,:3].transpose()
                 
+                
                 # transform current points
+                # zyb修改，这里改成不旋转进去，在mapper里面再旋转
                 points = np.matmul(R, points.transpose()).transpose() - np.matmul(R, T)
                 # Set initial pointcloud to target points
                 self.reg.set_input_target(points)
@@ -266,6 +268,8 @@ class Tracker(SLAMParameters):
 
                 # transform current points
                 points = np.matmul(R, points.transpose()).transpose() - np.matmul(R, T)
+                print(R)
+                print(T)
                 # Use only trackable points when tracking
                 target_corres, distances = self.reg.get_source_correspondence() # get associated points source points
                 

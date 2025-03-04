@@ -171,8 +171,9 @@ class Mapper(SLAMParameters):
             # retrack_frame = False
             if self.is_tracking_keyframe_shared[0]:
                 # get shared gaussians
-                points, colors, rots, scales, z_values, trackable_filter = self.shared_new_gaussians.get_values()
+                
                 if self.shared_cam.cam_idx[0].item() == 0:
+                    points, colors, rots, scales, z_values, trackable_filter = self.shared_new_gaussians.get_values()
                     # Add new gaussians to map gaussians
                     self.gaussians.add_from_pcd2_tensor(points, colors, rots, scales, z_values, trackable_filter)
                 
@@ -372,16 +373,33 @@ class Mapper(SLAMParameters):
                     new_keyframe = False
                     retrack_frame = False
 
+                points, colors, rots, scales, z_values, trackable_filter = self.shared_new_gaussians.get_values()
+                # Add new gaussians to map gaussians
+                
 
                 q_retrack = self.gaussians._camera_quaternion
 
                 t_retrack = self.gaussians._camera_t
 
+                
                 R_retrack = torch.tensor(Rotation.from_quat(q_retrack.cpu().detach()).as_matrix()).cuda()
+                R_GCIP = torch.tensor(Rotation.from_quat(quaternion.cpu().detach()).as_matrix()).cuda()
 
                 T_retrack = torch.eye(4).cuda()
+                T_GCIP = torch.eye(4).cuda()
+
+                T_GCIP[:3,:3] = R_GCIP
+                T_GCIP[:3,3] = t
+
                 T_retrack[:3,:3] = R_retrack
                 T_retrack[:3,3] = t_retrack
+
+
+                points_zero_base = torch.matmul(R_GCIP.T, points.T.to(torch.float64)).T+t
+                points_retrack = (torch.matmul(R_retrack, points_zero_base.T).T - torch.matmul(R_retrack, t_retrack.to(torch.float64))).to(torch.float32)
+                self.gaussians.add_from_pcd2_tensor(points_retrack, colors, rots, scales, z_values, trackable_filter)
+
+                
 
                 # if len(self.mapping_cams) != 0 :
                 #     self.retrack_Rt_shared[0] = world2camera_retrack.cpu().detach()
