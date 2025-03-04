@@ -267,7 +267,7 @@ if __name__ == "__main__":
     parser.add_argument("--downsample_rate", default=5)
     parser.add_argument("--test", default=None)
     parser.add_argument("--save_results", action='store_true', default=True)
-    parser.add_argument("--rerun_viewer", action="store_true", default=True)
+    parser.add_argument("--rerun_viewer", action="store_true", default=False)
 
 
     # parser = ArgumentParser(description="dataset_path / output_path / verbose")

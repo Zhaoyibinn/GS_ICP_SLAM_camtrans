@@ -268,8 +268,8 @@ class Tracker(SLAMParameters):
 
                 # transform current points
                 points = np.matmul(R, points.transpose()).transpose() - np.matmul(R, T)
-                print(R)
-                print(T)
+                # print(R)
+                # print(T)
                 # Use only trackable points when tracking
                 target_corres, distances = self.reg.get_source_correspondence() # get associated points source points
                 

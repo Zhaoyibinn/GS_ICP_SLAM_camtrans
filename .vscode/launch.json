@@ -17,7 +17,8 @@
                     "--config",
                     "configs/TUM/rgbd_dataset_freiburg1_desk.txt",
                     "--output_path",
-                    "output/desk"]
+                    "output/desk",
+                    "--rerun_viewer"]
             
             // "cwd": "${workspaceFolder}/taichi_decoupled"
         },

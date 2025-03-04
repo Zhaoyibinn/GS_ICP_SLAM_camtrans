@@ -364,12 +364,12 @@ class GaussianModel(nn.Module):
 
     def training_camera_setup(self,training_args):
         l_camera = [
-                    # {'params': [self._xyz], 'lr': training_args.position_lr_init * self.spatial_lr_scale, "name": "xyz"},
-                    # {'params': [self._features_dc], 'lr': training_args.feature_lr, "name": "f_dc"},
-                    # {'params': [self._features_rest], 'lr': training_args.feature_lr / 20.0, "name": "f_rest"},
-                    # {'params': [self._opacity], 'lr': training_args.opacity_lr, "name": "opacity"},
-                    # {'params': [self._scaling], 'lr': training_args.scaling_lr, "name": "scaling"},
-                    # {'params': [self._rotation], 'lr': training_args.rotation_lr, "name": "rotation"},
+                    {'params': [self._xyz], 'lr': training_args.position_lr_init * self.spatial_lr_scale, "name": "xyz"},
+                    {'params': [self._features_dc], 'lr': training_args.feature_lr, "name": "f_dc"},
+                    {'params': [self._features_rest], 'lr': training_args.feature_lr / 20.0, "name": "f_rest"},
+                    {'params': [self._opacity], 'lr': training_args.opacity_lr, "name": "opacity"},
+                    {'params': [self._scaling], 'lr': training_args.scaling_lr, "name": "scaling"},
+                    {'params': [self._rotation], 'lr': training_args.rotation_lr, "name": "rotation"},
                     {'params': [self._camera_quaternion], 'lr': 1e-4, "name": "camera_q"},
                     {'params': [self._camera_t], 'lr': 1e-4, "name": "camera_t"}]
         self.optimizer_camera = torch.optim.Adam(l_camera, eps=1e-15)
