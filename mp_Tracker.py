@@ -122,17 +122,34 @@ class Tracker(SLAMParameters):
         for ii in range(self.num_images):
             # time.sleep(1e-1)
             while self.retrack_ok_shared[0]:
+                
                 time.sleep(1e-15)
 
             # print("track frame:", ii)
 
-
+            # last_retrack_Rt_shared = deepcopy(self.retrack_Rt_shared[0])
             # if last_retrack_Rt_shared.float().mean() != self.retrack_Rt_shared[0].mean() :
-            #     last_retrack_Rt_shared = deepcopy(self.retrack_Rt_shared[0])
-            #     pose_retrack = torch.eye(4)
-            #     pose_retrack[:3,:3] = last_retrack_Rt_shared[:3,:3]
-            #     pose_retrack[:3,3] = last_retrack_Rt_shared[:3,3]
-            #     self.poses[-1]=np.array(pose_retrack.inverse())
+            if last_retrack_Rt_shared.float().mean() != self.retrack_Rt_shared[0].mean():
+                last_retrack_Rt_shared = deepcopy(self.retrack_Rt_shared[0])
+                pose_retrack = torch.eye(4)
+                pose_retrack[:3,:3] = last_retrack_Rt_shared[:3,:3]
+                pose_retrack[:3,3] = last_retrack_Rt_shared[:3,3]
+
+                # GICP_retrack_R = pose_retrack[:3,:3].T
+                # GICP_retrack_t = pose_retrack[:3,3]
+                # GICP_T = torch.eye(4)
+                # GICP_T[:3,:3] = GICP_retrack_R
+                # GICP_T[:3,3] = GICP_retrack_t
+
+                # GICP_T = torch.inverse(GICP_T)
+                idx = self.poses.__len__() - 1
+                print(f"{idx} GSICP ATE:", (self.trajmanager.gt_poses[idx][:3,3] - self.poses[idx][:3,3]).mean())
+                print(f"{idx} Ours ATE:",(self.trajmanager.gt_poses[idx][:3,3] -np.array(pose_retrack.inverse()[:3,3])).mean())
+                
+                self.poses[-1]=np.array(pose_retrack.inverse())
+                
+               
+
 
             #     rr.set_time_seconds("log_time", time.time() - self.total_start_time)
             #     rr.log(
@@ -193,6 +210,8 @@ class Tracker(SLAMParameters):
                 
                 # transform current points
                 points = np.matmul(R, points.transpose()).transpose() - np.matmul(R, T)
+
+
                 # Set initial pointcloud to target points
                 self.reg.set_input_target(points)
                 

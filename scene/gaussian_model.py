@@ -337,6 +337,11 @@ class GaussianModel(nn.Module):
             target_rots = self.get_rotation[target_idxs]
             target_scales = self.get_scaling[target_idxs]
             
+            # target_points = self.get_xyz
+            # target_rots = self.get_rotation
+            # target_scales = self.get_scaling
+
+
             return target_points.cpu(), target_rots.cpu(), target_scales.cpu()
 
     def training_setup(self, training_args):
@@ -371,7 +376,8 @@ class GaussianModel(nn.Module):
                     {'params': [self._scaling], 'lr': training_args.scaling_lr, "name": "scaling"},
                     {'params': [self._rotation], 'lr': training_args.rotation_lr, "name": "rotation"},
                     {'params': [self._camera_quaternion], 'lr': 1e-4, "name": "camera_q"},
-                    {'params': [self._camera_t], 'lr': 1e-4, "name": "camera_t"}]
+                    {'params': [self._camera_t], 'lr': 1e-4, "name": "camera_t"}
+                    ]
         self.optimizer_camera = torch.optim.Adam(l_camera, eps=1e-15)
 
 

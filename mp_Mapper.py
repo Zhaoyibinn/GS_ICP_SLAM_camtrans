@@ -141,6 +141,9 @@ class Mapper(SLAMParameters):
         self.gaussians.update_learning_rate(1)
         self.gaussians.active_sh_degree = self.gaussians.max_sh_degree
         self.is_tracking_keyframe_shared[0] = 0
+
+        self.mapping_iter = 0
+
         random_num = 0
         
         if self.demo[0]:
@@ -163,7 +166,7 @@ class Mapper(SLAMParameters):
 
 
             all_start = time.time()
-            if self.end_of_dataset[0]:
+            if self.end_of_dataset[0] and self.mapping_iter>5000:
                 break
  
             if self.verbose:
@@ -174,9 +177,10 @@ class Mapper(SLAMParameters):
                 
                 if self.shared_cam.cam_idx[0].item() == 0:
                     points, colors, rots, scales, z_values, trackable_filter = self.shared_new_gaussians.get_values()
+                    self.gaussians.add_from_pcd2_tensor(points, colors, rots, scales, z_values, trackable_filter)
                         # Add new gaussians to map gaussians
                     target_points, target_rots, target_scales  = self.gaussians.get_trackable_gaussians_tensor(self.trackable_opacity_th)
-                    self.gaussians.add_from_pcd2_tensor(points, colors, rots, scales, z_values, trackable_filter)
+                    
                     self.shared_target_gaussians.input_values(target_points, target_rots, target_scales)
                     self.target_gaussians_ready[0] = 1
                 
@@ -224,8 +228,11 @@ class Mapper(SLAMParameters):
             #     time.sleep(1e-15)
             if len(self.mapping_cams)>0:
             # if True:
-                new_train_time = 20
+                new_train_time = 10
                 random_train_time = 0
+
+
+                
                 for i in range(random_train_time + 1):
                 # train once on new keyframe, and random
                     if len(self.new_keyframes) > 0:
@@ -284,6 +291,9 @@ class Mapper(SLAMParameters):
                         # print("")
                         depth_image = render_pkg["render_depth"]
                         image = render_pkg["render"]
+
+                        self.mapping_iter += 1
+
                         viewspace_point_tensor, visibility_filter, radii = render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
 
                         mask = (gt_depth_image>0.)
@@ -303,7 +313,7 @@ class Mapper(SLAMParameters):
 
                         if new_keyframe:
                             # loss = (1.0 - L_ssim)
-                            loss = loss_rgb+ 0.1*loss_d
+                            loss = loss_rgb
                         else:
                             loss = loss_rgb + 0.1*loss_d
 
@@ -322,6 +332,9 @@ class Mapper(SLAMParameters):
                             if new_keyframe:
                                 self.gaussians.optimizer_camera.step()
                                 self.gaussians.optimizer_camera.zero_grad(set_to_none = True)
+                                # self.gaussians.optimizer.step()
+                                # self.gaussians.optimizer.zero_grad(set_to_none=True)
+
                             else:
                                 self.gaussians.optimizer.step()
                                 self.gaussians.optimizer.zero_grad(set_to_none=True)
@@ -360,15 +373,16 @@ class Mapper(SLAMParameters):
                                 # rr.set_time_sequence("step", current_i)
                                 if new_keyframe:
                                     rr.set_time_seconds("log_time", time.time() - self.total_start_time_viewer)
-                                    rr.log("rendered_rgb_random", rr.Image(rgb_np))
+                                    rr.log("rendered_rgb_new", rr.Image(rgb_np))
                                     rr.log("Ll1_map", rr.Image(Ll1_map_np))
+                                    rr.log("gt_rgb", rr.Image(gt_rgb_np))
                                     
                                     
                                 else:
                                     rr.set_time_seconds("log_time", time.time() - self.total_start_time_viewer)
-                                    rr.log("rendered_rgb_new", rr.Image(rgb_np))
+                                    rr.log("rendered_rgb_random", rr.Image(rgb_np))
 
-                                rr.log("gt_rgb", rr.Image(gt_rgb_np))
+                                
                                     # rr.set_time_seconds("log_time", time.time() - self.total_start_time_viewer)
                                     # rr.log("rendered_rgb_new_loss", rr.Image(abs(rgb_np - gt_rgb_np)))
 
@@ -379,6 +393,8 @@ class Mapper(SLAMParameters):
                     new_keyframe = False
                     retrack_frame = False
 
+                
+                
                 points, colors, rots, scales, z_values, trackable_filter = self.shared_new_gaussians.get_values()
                 # Add new gaussians to map gaussians
 
@@ -404,7 +420,7 @@ class Mapper(SLAMParameters):
                 rot_zero_base = torch.matmul(R_GCIP.T, rot_GICP.T).T
                 rot_retrack = (torch.matmul(R_retrack, rot_zero_base.T).T).to(torch.float32)
 
-                rot_q_retrack = torch.tensor(Rotation.from_matrix(rot_retrack.cpu().detach()).as_quat()).cuda()
+                rot_q_retrack = torch.tensor(Rotation.from_matrix(rot_retrack.cpu().detach()).as_quat()).cuda().to(torch.float32)
                 
                 self.gaussians.add_from_pcd2_tensor(points_retrack, colors, rot_q_retrack, scales, z_values, trackable_filter)
 
@@ -420,6 +436,7 @@ class Mapper(SLAMParameters):
 
                 if len(self.mapping_cams) != 0 :
                     world2camera_retrack = copy.deepcopy(T_retrack.cpu().detach())
+                    # world2camera_retrack = copy.deepcopy(T_GCIP.cpu().detach())
                     self.retrack_Rt_shared[0] = world2camera_retrack
 
 
@@ -430,7 +447,7 @@ class Mapper(SLAMParameters):
                 self.train_iter += 1
                 # torch.cuda.empty_cache()
             # print("mapping all cost time:", time.time() - all_start)
-            self.retrack_ok_shared[0] = 0
+                self.retrack_ok_shared[0] = 0
         if self.verbose:
             while True:
                 self.run_viewer(False)
