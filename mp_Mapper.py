@@ -174,14 +174,17 @@ class Mapper(SLAMParameters):
                 
                 if self.shared_cam.cam_idx[0].item() == 0:
                     points, colors, rots, scales, z_values, trackable_filter = self.shared_new_gaussians.get_values()
-                    # Add new gaussians to map gaussians
+                        # Add new gaussians to map gaussians
+                    target_points, target_rots, target_scales  = self.gaussians.get_trackable_gaussians_tensor(self.trackable_opacity_th)
                     self.gaussians.add_from_pcd2_tensor(points, colors, rots, scales, z_values, trackable_filter)
+                    self.shared_target_gaussians.input_values(target_points, target_rots, target_scales)
+                    self.target_gaussians_ready[0] = 1
                 
 
                 # Allocate new target points to shared memory
                 # target_points, target_rots, target_scales  = self.gaussians.get_trackable_gaussians_tensor(self.trackable_opacity_th)
                 # self.shared_target_gaussians.input_values(target_points, target_rots, target_scales)
-                self.target_gaussians_ready[0] = 1
+                # self.target_gaussians_ready[0] = 1
 
                 # Add new keyframe
                 newcam = copy.deepcopy(self.shared_cam)
@@ -194,10 +197,10 @@ class Mapper(SLAMParameters):
                 # retrack_frame = True
 
             elif self.is_mapping_keyframe_shared[0]:
-                # # get shared gaussians
-                # points, colors, rots, scales, z_values, _ = self.shared_new_gaussians.get_values()
+                # get shared gaussians
+                points, colors, rots, scales, z_values, _ = self.shared_new_gaussians.get_values()
                 
-                # # Add new gaussians to map gaussians
+                # Add new gaussians to map gaussians
                 # self.gaussians.add_from_pcd2_tensor(points, colors, rots, scales, z_values, [])
                 
                 # Add new keyframe
@@ -220,6 +223,7 @@ class Mapper(SLAMParameters):
             # while not self.is_tracking_keyframe_shared[0]:
             #     time.sleep(1e-15)
             if len(self.mapping_cams)>0:
+            # if True:
                 new_train_time = 20
                 random_train_time = 0
                 for i in range(random_train_time + 1):
@@ -377,13 +381,9 @@ class Mapper(SLAMParameters):
 
                 points, colors, rots, scales, z_values, trackable_filter = self.shared_new_gaussians.get_values()
                 # Add new gaussians to map gaussians
-                
 
                 q_retrack = self.gaussians._camera_quaternion
-
                 t_retrack = self.gaussians._camera_t
-
-                
                 R_retrack = torch.tensor(Rotation.from_quat(q_retrack.cpu().detach()).as_matrix()).cuda()
                 R_GCIP = torch.tensor(Rotation.from_quat(quaternion.cpu().detach()).as_matrix()).cuda()
 
@@ -399,17 +399,28 @@ class Mapper(SLAMParameters):
 
                 points_zero_base = torch.matmul(R_GCIP.T, points.T.to(torch.float64)).T+t
                 points_retrack = (torch.matmul(R_retrack, points_zero_base.T).T - torch.matmul(R_retrack, t_retrack.to(torch.float64))).to(torch.float32)
+
+                rot_GICP = torch.tensor(Rotation.from_quat(rots.cpu().detach()).as_matrix()).cuda()
+                rot_zero_base = torch.matmul(R_GCIP.T, rot_GICP.T).T
+                rot_retrack = (torch.matmul(R_retrack, rot_zero_base.T).T).to(torch.float32)
+
+                rot_q_retrack = torch.tensor(Rotation.from_matrix(rot_retrack.cpu().detach()).as_quat()).cuda()
                 
-                self.gaussians.add_from_pcd2_tensor(points_retrack, colors, rots, scales, z_values, trackable_filter)
+                self.gaussians.add_from_pcd2_tensor(points_retrack, colors, rot_q_retrack, scales, z_values, trackable_filter)
 
-                target_points, target_rots, target_scales  = self.gaussians.get_trackable_gaussians_tensor(self.trackable_opacity_th)
-                self.shared_target_gaussians.input_values(target_points, target_rots, target_scales)
-                # self.target_gaussians_ready[0] = 1
+                if self.shared_cam.cam_idx[0].item() != 0:
+                    target_points, target_rots, target_scales  = self.gaussians.get_trackable_gaussians_tensor(self.trackable_opacity_th)
+                    self.shared_target_gaussians.input_values(target_points, target_rots, target_scales)
+
+
+
+                    self.target_gaussians_ready[0] = 1
 
                 
 
-                # if len(self.mapping_cams) != 0 :
-                #     self.retrack_Rt_shared[0] = world2camera_retrack.cpu().detach()
+                if len(self.mapping_cams) != 0 :
+                    world2camera_retrack = copy.deepcopy(T_retrack.cpu().detach())
+                    self.retrack_Rt_shared[0] = world2camera_retrack
 
 
 

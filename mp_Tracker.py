@@ -192,7 +192,6 @@ class Tracker(SLAMParameters):
                 
                 
                 # transform current points
-                # zyb修改，这里改成不旋转进去，在mapper里面再旋转
                 points = np.matmul(R, points.transpose()).transpose() - np.matmul(R, T)
                 # Set initial pointcloud to target points
                 self.reg.set_input_target(points)
