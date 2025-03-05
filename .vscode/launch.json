@@ -21,5 +21,17 @@
             
             // "cwd": "${workspaceFolder}/taichi_decoupled"
         },
+        {
+            "name": "test",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/test.py",
+            "pythonPath":"/home/zhaoyibin/anaconda3/envs/gsicpslam/bin/python",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": []
+            
+            // "cwd": "${workspaceFolder}/taichi_decoupled"
+        }
     ]
 }

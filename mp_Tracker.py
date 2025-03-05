@@ -236,7 +236,9 @@ class Tracker(SLAMParameters):
                 initial_pose = self.poses[-1]
 
                 current_pose = self.reg.align(initial_pose)
-                self.poses.append(current_pose)
+
+                # self.poses.append(current_pose)
+                self.poses.append(self.trajmanager.gt_poses[ii])
 
                 if self.rerun_viewer:
                     # rr.set_time_sequence("step", self.iteration_images)
