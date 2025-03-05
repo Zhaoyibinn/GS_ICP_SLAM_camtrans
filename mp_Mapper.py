@@ -226,176 +226,154 @@ class Mapper(SLAMParameters):
 
             # while not self.is_tracking_keyframe_shared[0]:
             #     time.sleep(1e-15)
-            if len(self.mapping_cams)>0:
-            # if True:
-                new_train_time = 10
-                random_train_time = 0
+            new_train_time = 1
+            random_train_time = 19
+            if len(self.new_keyframes) > 0:
+                # if True:
+                train_idx = self.new_keyframes.pop(0)
 
+                viewpoint_cam = copy.deepcopy(self.mapping_cams[train_idx])
+                # viewpoint_cam = self.mapping_cams[train_idx]
+                new_keyframe = True
 
-                
-                for i in range(random_train_time + 1):
-                # train once on new keyframe, and random
-                    if len(self.new_keyframes) > 0:
-                        train_idx = self.new_keyframes.pop(0)
-
-                        viewpoint_cam = copy.deepcopy(self.mapping_cams[train_idx])
-                        # viewpoint_cam = self.mapping_cams[train_idx]
-                        new_keyframe = True
-                    else:
-                        train_idx = random.choice(range(len(self.mapping_cams)))
-                        random_num = random_num + 1
-                        # print("random choose num:", random_num)
-                        viewpoint_cam = copy.deepcopy(self.mapping_cams[train_idx])
-                        # viewpoint_cam = self.mapping_cams[train_idx]
-
-                    if self.training_stage==0:
-                        gt_image = viewpoint_cam.original_image.cuda()
-                        gt_depth_image = viewpoint_cam.original_depth_image.cuda()
-                    elif self.training_stage==1:
-                        gt_image = viewpoint_cam.rgb_level_1.cuda()
-                        gt_depth_image = viewpoint_cam.depth_level_1.cuda()
-                    elif self.training_stage==2:
-                        gt_image = viewpoint_cam.rgb_level_2.cuda()
-                        gt_depth_image = viewpoint_cam.depth_level_2.cuda()
-
-                    self.training=True
-
-
-
-
-
-                    world2camera = viewpoint_cam.world_view_transform.T
-
-                    # print("")
-                    # print(viewpoint_cam.world_view_transform.T)
-                    # world2camera[:3,:3]  = world2camera[:3,:3].T
-                    # camera2world = world2camera.inverse()
-                    R = world2camera[:3,:3]
-                    t = world2camera[:3,3]
-                    # 相机相对于世界
-                    rotation_obj = Rotation.from_matrix(R.cpu().detach())
-                    quaternion = torch.tensor(rotation_obj.as_quat()).cuda()
-
-                    self.gaussians.import_camera_rt(quaternion,t)
-
-                    if new_keyframe:
-                        times = new_train_time
-                    else:
-                        times = 1
-
-                    for ii in range(times):
-                        transformed_gaussians = self.gaussians.trans_gaussian_camera()
-                        self.gaussians.training_camera_setup(self)
-                        render_pkg = render_3(viewpoint_cam, self.gaussians, self.pipe, self.background, training_stage=self.training_stage)
-                        # print(viewpoint_cam.world_view_transform.T)
-                        # print("")
-                        depth_image = render_pkg["render_depth"]
-                        image = render_pkg["render"]
-
-                        self.mapping_iter += 1
-
-                        viewspace_point_tensor, visibility_filter, radii = render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
-
-                        mask = (gt_depth_image>0.)
-                        mask = mask.detach()
-                        # color_mask = torch.tile(mask, (3,1,1))
-                        gt_image = gt_image * mask
-
-                        # Loss
-                        Ll1_map, Ll1 = l1_loss(image, gt_image)
-                        L_ssim_map, L_ssim = ssim(image, gt_image)
-
-                        d_max = 10.
-                        Ll1_d_map, Ll1_d = l1_loss(depth_image/d_max, gt_depth_image/d_max)
-
-                        loss_rgb = (1.0 - self.lambda_dssim) * Ll1 + self.lambda_dssim * (1.0 - L_ssim)
-                        loss_d = Ll1_d
-
-                        if new_keyframe:
-                            # loss = (1.0 - L_ssim)
-                            loss = loss_rgb
-                        else:
-                            loss = loss_rgb + 0.1*loss_d
-
-
-
-                        loss.backward()
-                        with torch.no_grad():
-                            if self.train_iter % 200 == 0:  # 200
-                                self.gaussians.prune_large_and_transparent(0.005, self.prune_th)
-
-
-
-                            # self.gaussians.optimizer.step()
-                            # self.gaussians.optimizer.zero_grad(set_to_none = True)
-
-                            if new_keyframe:
-                                self.gaussians.optimizer_camera.step()
-                                self.gaussians.optimizer_camera.zero_grad(set_to_none = True)
-                                # self.gaussians.optimizer.step()
-                                # self.gaussians.optimizer.zero_grad(set_to_none=True)
-
-                            else:
-                                self.gaussians.optimizer.step()
-                                self.gaussians.optimizer.zero_grad(set_to_none=True)
-
-                            # if new_keyframe:
-                            if False:
-                                # print("new keyframe:",train_idx)
-                                retrack_q = self.gaussians._camera_quaternion
-                                # retrack_q = torch.cat((retrack_q[1:4], retrack_q[[0]]), dim=0)
-                                retrack_rotation_obj = Rotation.from_quat(retrack_q.cpu().detach())
-                                retrack_R = torch.tensor(retrack_rotation_obj.as_matrix()).cuda()
-
-                                retrack_t = self.gaussians._camera_t
-
-                                retrack_T = torch.eye(4).cuda()
-                                retrack_T[:3,:3] = retrack_R
-                                retrack_T[:3,3] = retrack_t
-                                # self.gaussians.build_rotation(retrack_q.unsqueeze(0))
-
-                                # world2camera_retrack = copy.deepcopy(world2camera)
-                                world2camera_retrack = copy.deepcopy(retrack_T)
-
-
-                            if self.rerun_viewer and ii==times-1:
-                                current_i = copy.deepcopy(self.iter_shared[0])
-                                rgb_np = image.cpu().numpy().transpose(1,2,0)
-                                rgb_np = np.clip(rgb_np, 0., 1.0) * 255
-
-                                gt_rgb_np = gt_image.cpu().numpy().transpose(1, 2, 0)
-                                gt_rgb_np = np.clip(gt_rgb_np, 0., 1.0) * 255
-
-                                Ll1_map_np = Ll1_map.cpu().numpy().transpose(1, 2, 0)
-                                Ll1_map_np = np.clip(Ll1_map_np, 0., 1.0) * 255
-
-
-                                # rr.set_time_sequence("step", current_i)
-                                if new_keyframe:
-                                    rr.set_time_seconds("log_time", time.time() - self.total_start_time_viewer)
-                                    rr.log("rendered_rgb_new", rr.Image(rgb_np))
-                                    rr.log("Ll1_map", rr.Image(Ll1_map_np))
-                                    rr.log("gt_rgb", rr.Image(gt_rgb_np))
-                                    
-                                    
-                                else:
-                                    rr.set_time_seconds("log_time", time.time() - self.total_start_time_viewer)
-                                    rr.log("rendered_rgb_random", rr.Image(rgb_np))
-
-                                
-                                    # rr.set_time_seconds("log_time", time.time() - self.total_start_time_viewer)
-                                    # rr.log("rendered_rgb_new_loss", rr.Image(abs(rgb_np - gt_rgb_np)))
-
-                                color_sh = self.gaussians._features_dc.cpu().detach()
-                                color_sh_trans = color_sh.squeeze(1) * 0.282094791773878 + 0.5
-                                rr.log(f"current_gaussian",rr.Points3D(self.gaussians._xyz.cpu().detach(), colors=color_sh_trans,radii=0.01))
-                    times = 1
-                    new_keyframe = False
-                    retrack_frame = False
-
+                self.training=True
                 
                 
+
+                if self.training_stage==0:
+                    gt_image = viewpoint_cam.original_image.cuda()
+                    gt_depth_image = viewpoint_cam.original_depth_image.cuda()
+                elif self.training_stage==1:
+                    gt_image = viewpoint_cam.rgb_level_1.cuda()
+                    gt_depth_image = viewpoint_cam.depth_level_1.cuda()
+                elif self.training_stage==2:
+                    gt_image = viewpoint_cam.rgb_level_2.cuda()
+                    gt_depth_image = viewpoint_cam.depth_level_2.cuda()
+
+                world2camera = viewpoint_cam.world_view_transform.T
+
+                # print("")
+                # print(viewpoint_cam.world_view_transform.T)
+                # world2camera[:3,:3]  = world2camera[:3,:3].T
+                # camera2world = world2camera.inverse()
+                R = world2camera[:3,:3]
+                t = world2camera[:3,3]
+                # 相机相对于世界
+                rotation_obj = Rotation.from_matrix(R.cpu().detach())
+                quaternion = torch.tensor(rotation_obj.as_quat()).cuda()
+
+                self.gaussians.import_camera_rt(quaternion,t)
+
+                self.gaussians.training_setup(self)
+
                 points, colors, rots, scales, z_values, trackable_filter = self.shared_new_gaussians.get_values()
+                for i in range(new_train_time):
+                    transformed_gaussians = self.gaussians.trans_gaussian_camera()
+                    
+                    render_pkg = render_3(viewpoint_cam, self.gaussians, self.pipe, self.background, training_stage=self.training_stage)
+                    # print(viewpoint_cam.world_view_transform.T)
+                    # print("")
+                    depth_image = render_pkg["render_depth"]
+                    image = render_pkg["render"]
+
+                    self.mapping_iter += 1
+
+                    viewspace_point_tensor, visibility_filter, radii = render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
+
+                    mask = (gt_depth_image>0.)
+                    mask = mask.detach()
+                    # color_mask = torch.tile(mask, (3,1,1))
+                    gt_image = gt_image * mask
+
+                    # Loss
+                    Ll1_map, Ll1 = l1_loss(image, gt_image)
+                    L_ssim_map, L_ssim = ssim(image, gt_image)
+
+                    d_max = 10.
+                    Ll1_d_map, Ll1_d = l1_loss(depth_image/d_max, gt_depth_image/d_max)
+
+                    loss_rgb = (1.0 - self.lambda_dssim) * Ll1 + self.lambda_dssim * (1.0 - L_ssim)
+                    loss_d = Ll1_d
+
+
+                    loss = loss_rgb
+
+                    # loss = loss_rgb + 0.1*loss_d
+
+
+
+                    loss.backward()
+                    with torch.no_grad():
+                        # if self.train_iter % 200 == 0:  # 200
+                        #     self.gaussians.prune_large_and_transparent(0.005, self.prune_th)
+
+
+
+                        # self.gaussians.optimizer.step()
+                        # self.gaussians.optimizer.zero_grad(set_to_none = True)
+
+                        
+                        self.gaussians.optimizer_camera.step()
+                        self.gaussians.optimizer_camera.zero_grad(set_to_none = True)
+                            # self.gaussians.optimizer.step()
+                            # self.gaussians.optimizer.zero_grad(set_to_none=True)
+
+
+
+                        # if new_keyframe:
+                        if False:
+                            # print("new keyframe:",train_idx)
+                            retrack_q = self.gaussians._camera_quaternion
+                            # retrack_q = torch.cat((retrack_q[1:4], retrack_q[[0]]), dim=0)
+                            retrack_rotation_obj = Rotation.from_quat(retrack_q.cpu().detach())
+                            retrack_R = torch.tensor(retrack_rotation_obj.as_matrix()).cuda()
+
+                            retrack_t = self.gaussians._camera_t
+
+                            retrack_T = torch.eye(4).cuda()
+                            retrack_T[:3,:3] = retrack_R
+                            retrack_T[:3,3] = retrack_t
+                            # self.gaussians.build_rotation(retrack_q.unsqueeze(0))
+
+                            # world2camera_retrack = copy.deepcopy(world2camera)
+                            world2camera_retrack = copy.deepcopy(retrack_T)
+
+
+                        if self.rerun_viewer and i==new_train_time-1:
+                            current_i = copy.deepcopy(self.iter_shared[0])
+                            rgb_np = image.cpu().numpy().transpose(1,2,0)
+                            rgb_np = np.clip(rgb_np, 0., 1.0) * 255
+
+                            gt_rgb_np = gt_image.cpu().numpy().transpose(1, 2, 0)
+                            gt_rgb_np = np.clip(gt_rgb_np, 0., 1.0) * 255
+
+                            Ll1_map_np = Ll1_map.cpu().numpy().transpose(1, 2, 0)
+                            Ll1_map_np = np.clip(Ll1_map_np, 0., 1.0) * 255
+
+
+                            # rr.set_time_sequence("step", current_i)
+                            # if new_keyframe:
+                            rr.set_time_seconds("log_time", time.time() - self.total_start_time_viewer)
+                            rr.log("rendered_rgb_new", rr.Image(rgb_np))
+                            rr.log("Ll1_map", rr.Image(Ll1_map_np))
+                            rr.log("gt_rgb", rr.Image(gt_rgb_np))
+                                
+                                
+                            # else:
+                            #     rr.set_time_seconds("log_time", time.time() - self.total_start_time_viewer)
+                            #     rr.log("rendered_rgb_random", rr.Image(rgb_np))
+
+                            
+                                # rr.set_time_seconds("log_time", time.time() - self.total_start_time_viewer)
+                                # rr.log("rendered_rgb_new_loss", rr.Image(abs(rgb_np - gt_rgb_np)))
+
+                            # color_sh = self.gaussians._features_dc.cpu().detach()
+                            # color_sh_trans = color_sh.squeeze(1) * 0.282094791773878 + 0.5
+                            rr.log(f"current_gaussian",rr.Points3D(self.gaussians._xyz.cpu().detach(), colors=colors.cpu().detach(),radii=0.01))
+                    self.train_iter += 1
+
+
+                
                 # Add new gaussians to map gaussians
 
                 q_retrack = self.gaussians._camera_quaternion
@@ -424,6 +402,8 @@ class Mapper(SLAMParameters):
                 
                 self.gaussians.add_from_pcd2_tensor(points_retrack, colors, rot_q_retrack, scales, z_values, trackable_filter)
 
+                
+
                 if self.shared_cam.cam_idx[0].item() != 0:
                     target_points, target_rots, target_scales  = self.gaussians.get_trackable_gaussians_tensor(self.trackable_opacity_th)
                     self.shared_target_gaussians.input_values(target_points, target_rots, target_scales)
@@ -438,16 +418,117 @@ class Mapper(SLAMParameters):
                     world2camera_retrack = copy.deepcopy(T_retrack.cpu().detach())
                     # world2camera_retrack = copy.deepcopy(T_GCIP.cpu().detach())
                     self.retrack_Rt_shared[0] = world2camera_retrack
+                    self.retrack_ok_shared[0] = 0
 
 
 
+                self.gaussians.training_setup(self)
+                for i in range(random_train_time):
+                    # print("random train:",i)
+                    train_idx = random.choice(range(len(self.mapping_cams)))
+                    random_num = random_num + 1
+                    # print("random choose num:", random_num)
+                    viewpoint_cam = copy.deepcopy(self.mapping_cams[train_idx])
+                    # viewpoint_cam = self.mapping_cams[train_idx]
 
+
+                    world2camera = viewpoint_cam.world_view_transform.T
+
+                    # print("")
+                    # print(viewpoint_cam.world_view_transform.T)
+                    # world2camera[:3,:3]  = world2camera[:3,:3].T
+                    # camera2world = world2camera.inverse()
+                    R = world2camera[:3,:3]
+                    t = world2camera[:3,3]
+                    # 相机相对于世界
+                    rotation_obj = Rotation.from_matrix(R.cpu().detach())
+                    quaternion = torch.tensor(rotation_obj.as_quat()).cuda()
+
+                    self.gaussians.import_camera_rt(quaternion,t)
+
+                    self.gaussians.training_setup(self)
+                    self.gaussians.trans_gaussian_camera()
+
+
+                    # self.gaussians.training_setup(self)
+                    render_pkg = render_3(viewpoint_cam, self.gaussians, self.pipe, self.background, training_stage=self.training_stage)
+                    # print(viewpoint_cam.world_view_transform.T)
+                    # print("")
+                    depth_image = render_pkg["render_depth"]
+                    image = render_pkg["render"]
+
+                    self.mapping_iter += 1
+
+                    viewspace_point_tensor, visibility_filter, radii = render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
+
+                    mask = (gt_depth_image>0.)
+                    mask = mask.detach()
+                    # color_mask = torch.tile(mask, (3,1,1))
+                    gt_image = gt_image * mask
+
+                    # Loss
+                    Ll1_map, Ll1 = l1_loss(image, gt_image)
+                    L_ssim_map, L_ssim = ssim(image, gt_image)
+
+                    d_max = 10.
+                    Ll1_d_map, Ll1_d = l1_loss(depth_image/d_max, gt_depth_image/d_max)
+
+                    loss_rgb = (1.0 - self.lambda_dssim) * Ll1 + self.lambda_dssim * (1.0 - L_ssim)
+                    loss_d = Ll1_d
+
+
+                    # loss = loss_rgb
+
+                    loss = loss_rgb + 0.1*loss_d
+
+
+
+                    loss.backward()
+
+                    with torch.no_grad():
+                        # if self.train_iter % 200 == 0:  # 200
+                        #     self.gaussians.prune_large_and_transparent(0.005, self.prune_th)
+                        self.gaussians.optimizer.step()
+                        self.gaussians.optimizer.zero_grad(set_to_none=True)
+                        self.train_iter += 1
+
+                        if self.rerun_viewer and i==random_train_time-1:
+                            current_i = copy.deepcopy(self.iter_shared[0])
+                            rgb_np = image.cpu().numpy().transpose(1,2,0)
+                            rgb_np = np.clip(rgb_np, 0., 1.0) * 255
+
+                            gt_rgb_np = gt_image.cpu().numpy().transpose(1, 2, 0)
+                            gt_rgb_np = np.clip(gt_rgb_np, 0., 1.0) * 255
+
+                            Ll1_map_np = Ll1_map.cpu().numpy().transpose(1, 2, 0)
+                            Ll1_map_np = np.clip(Ll1_map_np, 0., 1.0) * 255
+
+
+                            # rr.set_time_sequence("step", current_i)
+                            # if new_keyframe:
+                            rr.set_time_seconds("log_time", time.time() - self.total_start_time_viewer)
+                            rr.log("rendered_rgb_random", rr.Image(rgb_np))
+                            rr.log("Ll1_map", rr.Image(Ll1_map_np))
+                            rr.log("gt_rgb", rr.Image(gt_rgb_np))
+                                
+                                
+                            # else:
+                            #     rr.set_time_seconds("log_time", time.time() - self.total_start_time_viewer)
+                            #     rr.log("rendered_rgb_random", rr.Image(rgb_np))
+
+                            
+                                # rr.set_time_seconds("log_time", time.time() - self.total_start_time_viewer)
+                                # rr.log("rendered_rgb_new_loss", rr.Image(abs(rgb_np - gt_rgb_np)))
+
+                            # color_sh = self.gaussians._features_dc.cpu().detach()
+                            # color_sh_trans = color_sh.squeeze(1) * 0.282094791773878 + 0.5
+                            rr.log(f"current_gaussian",rr.Points3D(self.gaussians._xyz.cpu().detach(), colors=colors.cpu().detach(),radii=0.01))
 
                 self.training = False
-                self.train_iter += 1
+                
                 # torch.cuda.empty_cache()
             # print("mapping all cost time:", time.time() - all_start)
-                self.retrack_ok_shared[0] = 0
+                
         if self.verbose:
             while True:
                 self.run_viewer(False)
