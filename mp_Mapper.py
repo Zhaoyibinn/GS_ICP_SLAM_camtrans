@@ -161,6 +161,7 @@ class Mapper(SLAMParameters):
         # self.new_keyframes.append(len(self.mapping_cams)-1)
 
         new_keyframe = False
+        densify_num = 0
         while True:
 
 
@@ -226,8 +227,8 @@ class Mapper(SLAMParameters):
 
             # while not self.is_tracking_keyframe_shared[0]:
             #     time.sleep(1e-15)
-            new_train_time = 1
-            random_train_time = 19
+            new_train_time = 10
+            random_train_time = 10
             if len(self.new_keyframes) > 0:
                 # if True:
                 train_idx = self.new_keyframes.pop(0)
@@ -339,7 +340,8 @@ class Mapper(SLAMParameters):
                             world2camera_retrack = copy.deepcopy(retrack_T)
 
 
-                        if self.rerun_viewer and i==new_train_time-1:
+                        # if self.rerun_viewer and i==new_train_time-1:
+                        if self.rerun_viewer:
                             current_i = copy.deepcopy(self.iter_shared[0])
                             rgb_np = image.cpu().numpy().transpose(1,2,0)
                             rgb_np = np.clip(rgb_np, 0., 1.0) * 255
@@ -354,6 +356,33 @@ class Mapper(SLAMParameters):
                             # rr.set_time_sequence("step", current_i)
                             # if new_keyframe:
                             rr.set_time_seconds("log_time", time.time() - self.total_start_time_viewer)
+                            
+
+                            q_retrack = self.gaussians._camera_quaternion
+                            t_retrack = self.gaussians._camera_t
+                            R_retrack = torch.tensor(Rotation.from_quat(q_retrack.cpu().detach()).as_matrix()).cuda()
+                            T_retrack = torch.eye(4).cuda()
+                            T_retrack[:3,:3] = R_retrack
+                            T_retrack[:3,3] = t_retrack
+
+                            T_retrack_inverse = np.array(T_retrack.inverse().cpu().detach())
+
+                            rr.log(
+                                "cam/current",
+                                rr.Transform3D(translation=T_retrack_inverse[:3,3],
+                                            rotation=rr.Quaternion(xyzw=(Rotation.from_matrix(T_retrack_inverse[:3,:3])).as_quat()))
+                            )
+
+
+                            rr.log(
+                                "cam/current",
+                                rr.Pinhole(
+                                    resolution=[viewpoint_cam.original_image.shape[2], viewpoint_cam.original_image.shape[1]],
+                                    image_from_camera=np.array([[viewpoint_cam.fx.item(),0,viewpoint_cam.cx.item()],[0,viewpoint_cam.fy.item(),viewpoint_cam.cy.item()],[0,0,1]]),
+                                    camera_xyz=rr.ViewCoordinates.RDF,
+                                )
+                            )
+
                             rr.log("rendered_rgb_new", rr.Image(rgb_np))
                             rr.log("Ll1_map", rr.Image(Ll1_map_np))
                             rr.log("gt_rgb", rr.Image(gt_rgb_np))
@@ -367,9 +396,15 @@ class Mapper(SLAMParameters):
                                 # rr.set_time_seconds("log_time", time.time() - self.total_start_time_viewer)
                                 # rr.log("rendered_rgb_new_loss", rr.Image(abs(rgb_np - gt_rgb_np)))
 
-                            # color_sh = self.gaussians._features_dc.cpu().detach()
-                            # color_sh_trans = color_sh.squeeze(1) * 0.282094791773878 + 0.5
-                            rr.log(f"current_gaussian",rr.Points3D(self.gaussians._xyz.cpu().detach(), colors=colors.cpu().detach(),radii=0.01))
+                            color_sh = self.gaussians._features_dc.cpu().detach()
+                            color_sh_trans = color_sh.squeeze(1) * 0.282094791773878 + 0.5
+                            rr.log(f"current_gaussian",rr.Points3D(self.gaussians._xyz.cpu().detach(), colors=torch.clip(color_sh_trans,0,1),radii=0.0005))
+
+                            # point_cloud = o3d.geometry.PointCloud()
+                            # point_cloud.points = o3d.utility.Vector3dVector(np.array(self.gaussians._xyz.cpu().detach()))
+                            # point_cloud.colors = o3d.utility.Vector3dVector(np.array(colors.cpu().detach()))
+                            # o3d.visualization.draw_geometries([point_cloud])
+
                     self.train_iter += 1
 
 
@@ -486,8 +521,11 @@ class Mapper(SLAMParameters):
                     loss.backward()
 
                     with torch.no_grad():
-                        # if self.train_iter % 200 == 0:  # 200
-                        #     self.gaussians.prune_large_and_transparent(0.005, self.prune_th)
+                        
+                        if self.train_iter - densify_num * 200> 0:  # 200
+                            self.gaussians.prune_large_and_transparent(0.005, self.prune_th)
+                            densify_num = densify_num + 1
+                            print("densify")
                         self.gaussians.optimizer.step()
                         self.gaussians.optimizer.zero_grad(set_to_none=True)
                         self.train_iter += 1
@@ -522,7 +560,7 @@ class Mapper(SLAMParameters):
 
                             # color_sh = self.gaussians._features_dc.cpu().detach()
                             # color_sh_trans = color_sh.squeeze(1) * 0.282094791773878 + 0.5
-                            rr.log(f"current_gaussian",rr.Points3D(self.gaussians._xyz.cpu().detach(), colors=colors.cpu().detach(),radii=0.01))
+                            # rr.log(f"current_gaussian",rr.Points3D(self.gaussians._xyz.cpu().detach(), colors=colors.cpu().detach(),radii=0.01))
 
                 self.training = False
                 

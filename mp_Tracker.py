@@ -355,7 +355,7 @@ class Tracker(SLAMParameters):
                     if self.rerun_viewer:
                         # rr.set_time_sequence("step", self.iteration_images)
                         rr.set_time_seconds("log_time", time.time() - self.total_start_time)
-                        rr.log(f"pt/trackable/{self.iteration_images}", rr.Points3D(points, colors=colors, radii=0.01))
+                        # rr.log(f"pt/trackable/{self.iteration_images}", rr.Points3D(points, colors=colors, radii=0.01))
                     self.retrack_ok_shared[0] = 1
 
                 elif if_mapping_keyframe:
